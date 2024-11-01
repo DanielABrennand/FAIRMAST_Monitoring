@@ -1,20 +1,61 @@
-version: '3'
 services:
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
+  meta_database:
+    container_name: pg_container
+    image: postgres:15.3
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /data/postgres
+    ports:
+      - "5432:5432"
     volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
-    network_mode: host
+      - postgres:/data/postgres
+      - ./:/app
+    networks:
+      - dbnetwork
 
   node_exporter:
     image: quay.io/prometheus/node-exporter:latest
     container_name: node_exporter
-    command:
-      - '--path.rootfs=/host'
-    network_mode: host
-    pid: host
-    restart: unless-stopped
     volumes:
       - '/:/host:ro,rslave'
+    networks:
+      - dbnetwork
+    ports:
+      - 9100:9100
 
+  pgsql_exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter
+    container_name: postgres_exporter
+    networks:
+      - dbnetwork
+    ports:
+      - 9187:9187
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - './prometheus.yml:/etc/prometheus/prometheus.yml'
+    networks:
+      - dbnetwork
+    ports:
+      - 9090:9090
+
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    networks:
+      - dbnetwork
+    ports:
+      - 3000:3000
+    volumes:
+      - './grafana/provisioning/:/etc/grafana/provisioning/'
+
+networks:
+  dbnetwork:
+    driver: bridge
+
+volumes:
+    postgres:
